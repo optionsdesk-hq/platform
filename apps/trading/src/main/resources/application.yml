@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: trading
+  datasource:                     # set per environment (infra repo); never committed with a real password
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/optionsdesk}
+    username: ${DATABASE_USER:optionsdesk}
+    password: ${DATABASE_PASSWORD:}
+  flyway:
+    locations: classpath:db/migration
+  threads:
+    virtual:
+      enabled: true          # Java 21 virtual threads for request handling
+
+server:
+  port: 8080
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true          # /actuator/health/liveness and /readiness for the deploy pipeline
+  metrics:
+    tags:
+      app: trading
+
+optionsdesk:
+  kite:
+    api-key: ${KITE_API_KEY:}               # from the environment's secrets; empty = no broker connection
+    token-path: ${KITE_TOKEN_PATH:/app/data/kite_token.json}   # read-only: written by the daily login
+  market:
+    # NSE F&O trading holidays 2026 (circular NSE/FAOP/71777 + 15 Jan, NSE/CMTR/72260). 2027: add when published.
+    holidays:
+      - 2026-01-15
+      - 2026-01-26
+      - 2026-03-03
+      - 2026-03-26
+      - 2026-03-31
+      - 2026-04-03
+      - 2026-04-14
+      - 2026-05-01
+      - 2026-05-28
+      - 2026-06-26
+      - 2026-09-14
+      - 2026-10-02
+      - 2026-10-20
+      - 2026-11-10
+      - 2026-11-24
+      - 2026-12-25
+    deploy-blackout-start: "09:00"
+    deploy-blackout-end: "15:45"
