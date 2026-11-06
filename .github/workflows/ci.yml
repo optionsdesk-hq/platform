@@ -21,11 +21,12 @@ jobs:
       - run: bash scripts/check-public.sh
 
   ci:
-    # The org's shared pipeline: formatting, build, tests, architecture, coverage gate, secret and dependency scans,
-    # and (on main) images to ghcr.io/optionsdesk-hq/{trading,marketdata}.
+    # The org's shared pipeline: formatting, build, tests, architecture, coverage gate, secret and dependency scans.
+    # No images from this public repo: the deployable images (engine + private strategies) are built in the private
+    # optionsdesk-hq/strategies repo (INC-2026-004).
     uses: optionsdesk-hq/.github/.github/workflows/java-ci.yml@main
     with:
-      image-tasks: ":apps:trading:jib :apps:marketdata:jib"
+      image-tasks: ""
     permissions:
       contents: read
-      packages: write
+      packages: write   # required by the shared pipeline's (skipped) image job
