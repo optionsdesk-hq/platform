@@ -29,4 +29,13 @@ class KiteConfiguration {
   KiteQuoteSource kiteQuoteSource(KiteClient kite) {
     return new KiteQuoteSource(kite, "NFO");
   }
+
+  /**
+   * NIFTY and its nearest weekly, strikes within 1,000 points: about 80 contracts, one request a
+   * minute.
+   */
+  @Bean
+  com.optionsdesk.trading.book.DayFeed.Factory kiteDayFeeds(KiteClient kite) {
+    return day -> KiteDayFeed.open(kite, day, "NSE:NIFTY 50", "NFO", "NIFTY", 1_000);
+  }
 }

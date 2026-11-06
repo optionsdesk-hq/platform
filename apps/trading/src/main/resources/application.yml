@@ -29,6 +29,8 @@ management:
       app: trading
 
 optionsdesk:
+  books:
+    enabled: ${BOOKS_ENABLED:false}         # the minute engine: off unless an environment switches it on
   kite:
     api-key: ${KITE_API_KEY:}               # from the environment's secrets; empty = no broker connection
     token-path: ${KITE_TOKEN_PATH:/app/data/kite_token.json}   # read-only: written by the daily login
