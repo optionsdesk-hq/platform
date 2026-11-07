@@ -25,6 +25,8 @@ import org.springframework.web.client.RestClient;
 class KiteDayFeedTest {
 
   static final String INDEX = "NSE:NIFTY 50";
+  static final Clock CLOCK =
+      Clock.fixed(java.time.Instant.parse("2026-11-09T04:20:02Z"), java.time.ZoneOffset.UTC);
   static final KiteProperties PROPS =
       new KiteProperties("https://kite.test", "k", null, Duration.ZERO, Duration.ZERO);
 
@@ -60,7 +62,7 @@ class KiteDayFeedTest {
   }
 
   KiteDayFeed newFeed() {
-    return KiteDayFeed.open(kite, LocalDate.of(2026, 11, 9), INDEX, "NFO", "NIFTY", 1_000);
+    return KiteDayFeed.open(kite, LocalDate.of(2026, 11, 9), INDEX, "NFO", "NIFTY", 1_000, CLOCK);
   }
 
   KiteDayFeed open() {
@@ -105,6 +107,17 @@ class KiteDayFeedTest {
         .hasValueSatisfying(q -> assertThat(q.bid()).isEqualTo(100.5));
     assertThat(feed.quote(20_000, Right.PE, LocalTime.of(9, 55))).isEmpty(); // no quote came for it
     assertThat(feed.spot(LocalTime.of(9, 51))).isEmpty();
+    var c = feed.contracts().find(20_000, Right.CE).orElseThrow();
+    assertThat(feed.latest(c))
+        .hasValueSatisfying(
+            q -> {
+              assertThat(q.bid()).isEqualTo(100.5);
+              assertThat(q.at()).isEqualTo(CLOCK.instant());
+            });
+    var other =
+        new com.optionsdesk.shared.domain.OptionContract(
+            "X", "NIFTY", LocalDate.of(2026, 11, 9), 20_000, Right.CE, 65);
+    assertThat(feed.latest(other)).isEmpty(); // not one of this feed's contracts
   }
 
   @Test
@@ -128,7 +141,9 @@ class KiteDayFeedTest {
         .expect(requestTo(containsString("/quote")))
         .andRespond(withSuccess("{\"data\":{}}", MediaType.APPLICATION_JSON));
     assertThatThrownBy(
-            () -> KiteDayFeed.open(kite, LocalDate.of(2026, 11, 9), INDEX, "NFO", "NIFTY", 1_000))
+            () ->
+                KiteDayFeed.open(
+                    kite, LocalDate.of(2026, 11, 9), INDEX, "NFO", "NIFTY", 1_000, CLOCK))
         .hasMessageContaining("no level");
     server.reset();
     server
@@ -140,7 +155,9 @@ class KiteDayFeedTest {
         .expect(requestTo("https://kite.test/instruments/NFO"))
         .andRespond(withSuccess(INSTRUMENTS, MediaType.TEXT_PLAIN));
     assertThatThrownBy(
-            () -> KiteDayFeed.open(kite, LocalDate.of(2026, 12, 1), INDEX, "NFO", "NIFTY", 1_000))
+            () ->
+                KiteDayFeed.open(
+                    kite, LocalDate.of(2026, 12, 1), INDEX, "NFO", "NIFTY", 1_000, CLOCK))
         .hasMessageContaining("no NIFTY expiry");
   }
 }

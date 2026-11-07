@@ -1,11 +1,14 @@
 package com.optionsdesk.trading.kite.adapter;
 
 import com.optionsdesk.shared.domain.OptionContract;
+import com.optionsdesk.shared.domain.Quote;
 import com.optionsdesk.shared.domain.Right;
 import com.optionsdesk.trading.book.spi.ContractLookup;
 import com.optionsdesk.trading.book.spi.DayFeed;
 import com.optionsdesk.trading.kite.client.KiteClient;
 import com.optionsdesk.trading.kite.client.KiteException;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -32,8 +35,13 @@ public final class KiteDayFeed implements DayFeed {
   private final Map<String, OptionContract> byStrike = new ConcurrentHashMap<>();
   private final NavigableMap<LocalTime, Double> spot = new ConcurrentSkipListMap<>();
   private final Map<String, NavigableMap<LocalTime, Snapshot>> quotes = new ConcurrentHashMap<>();
+  private final Clock clock;
+  private volatile LocalTime lastMinute;
+  private volatile Instant lastAt;
 
-  KiteDayFeed(KiteClient kite, String indexId, String exchange, List<OptionContract> chain) {
+  KiteDayFeed(
+      KiteClient kite, String indexId, String exchange, List<OptionContract> chain, Clock clock) {
+    this.clock = clock;
     this.kite = kite;
     this.indexId = indexId;
     this.exchange = exchange;
@@ -54,7 +62,8 @@ public final class KiteDayFeed implements DayFeed {
       String indexId,
       String exchange,
       String underlying,
-      double width) {
+      double width,
+      Clock clock) {
     var index = kite.quotes(List.of(indexId)).get(indexId);
     if (index == null || index.ltp() <= 0) {
       throw new KiteException(KiteException.Kind.API, "no level for " + indexId);
@@ -76,7 +85,7 @@ public final class KiteDayFeed implements DayFeed {
         chain.add(c);
       }
     }
-    return new KiteDayFeed(kite, indexId, exchange, chain);
+    return new KiteDayFeed(kite, indexId, exchange, chain, clock);
   }
 
   @Override
@@ -100,6 +109,19 @@ public final class KiteDayFeed implements DayFeed {
       }
     }
     spot.put(minute, index.ltp()); // last: a minute appears only once its quotes are in
+    lastAt = clock.instant();
+    lastMinute = minute;
+  }
+
+  @Override
+  public Optional<Quote> latest(OptionContract contract) {
+    LocalTime m = lastMinute;
+    OptionContract ours = byStrike.get(key(contract.strike(), contract.right()));
+    if (m == null || !contract.equals(ours)) {
+      return Optional.empty();
+    }
+    return quote(contract.strike(), contract.right(), m)
+        .map(s -> new Quote(contract, s.ltp(), s.bid(), s.ask(), lastAt));
   }
 
   @Override

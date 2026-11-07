@@ -274,4 +274,14 @@ class MinuteEngineTest {
             "URGENT: 09:16 capture failed, minute skipped: no quotes",
             "info: a-" + MON + ": made 2 calls");
   }
+
+  @Test
+  void quotesComeFromTheCurrentFeedOnly() {
+    var e = engine();
+    var c =
+        new com.optionsdesk.shared.domain.OptionContract("X", "NIFTY", MON, 24_000, Right.CE, 65);
+    assertThat(e.quotes().latest(c)).isEmpty(); // no feed yet
+    e.tick(at(MON, 9, 15, 2));
+    assertThat(e.quotes().latest(c)).isEmpty(); // the fake feed quotes nothing
+  }
 }
