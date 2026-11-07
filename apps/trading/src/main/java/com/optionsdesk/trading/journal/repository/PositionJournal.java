@@ -77,6 +77,41 @@ public class PositionJournal implements Ledger {
     return ids.stream().map(this::get).flatMap(Optional::stream).toList();
   }
 
+  /** A book's latest positions, any status, newest first. */
+  public List<Position> recent(String bookId, int limit) {
+    return jdbc
+        .sql("SELECT id FROM position WHERE book_id = :book ORDER BY id DESC LIMIT :limit")
+        .param("book", bookId)
+        .param("limit", limit)
+        .query(Long.class)
+        .list()
+        .stream()
+        .map(this::get)
+        .flatMap(Optional::stream)
+        .toList();
+  }
+
+  /** Positions of a book still open. */
+  public long countOpen(String bookId) {
+    return jdbc.sql("SELECT count(*) FROM position WHERE book_id = :book AND status = 'OPEN'")
+        .param("book", bookId)
+        .query(Long.class)
+        .single();
+  }
+
+  /** ₹ realised by a book's positions closed (or failed) at or after {@code since}. */
+  public double realisedSince(String bookId, java.time.Instant since) {
+    return jdbc.sql(
+            """
+            SELECT coalesce(sum(realised_pnl), 0) FROM position
+            WHERE book_id = :book AND closed_at >= :since AND realised_pnl IS NOT NULL
+            """)
+        .param("book", bookId)
+        .param("since", Timestamp.from(since))
+        .query(Double.class)
+        .single();
+  }
+
   public Optional<Position> get(long id) {
     var legs =
         jdbc.sql(

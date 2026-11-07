@@ -17,4 +17,12 @@ public interface MinuteBook {
 
   /** The session is over: close anything still open. */
   void finish(MinuteMarket market);
+
+  /**
+   * Exit now (owner or kill switch): close everything this book holds and act no more today. The
+   * engine calls it on the book's own thread. Books that can't do it say so.
+   */
+  default void exitNow(MinuteMarket market, String reason) {
+    throw new UnsupportedOperationException(id() + " can't exit on demand");
+  }
 }
