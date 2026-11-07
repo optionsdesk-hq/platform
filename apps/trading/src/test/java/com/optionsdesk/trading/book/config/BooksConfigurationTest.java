@@ -30,6 +30,11 @@ class BooksConfigurationTest {
     }
 
     @Bean
+    com.optionsdesk.trading.alerts.port.Alerts alerts() {
+      return com.optionsdesk.trading.alerts.port.Alerts.NONE;
+    }
+
+    @Bean
     DayFeed.Factory feeds() {
       return d -> {
         throw new IllegalStateException("not on a Saturday");

@@ -29,6 +29,10 @@ management:
       app: trading
 
 optionsdesk:
+  alerts:
+    telegram-token: ${TELEGRAM_BOT_TOKEN:}   # unset = alerts only logged
+    telegram-chat: ${TELEGRAM_CHAT_ID:}
+    label: ${ALERTS_LABEL:}                   # e.g. "staging": prefixes every message
   api:
     token: ${OPTIONSDESK_API_TOKEN:}        # bearer token for API writes; empty = writes refused
   books:

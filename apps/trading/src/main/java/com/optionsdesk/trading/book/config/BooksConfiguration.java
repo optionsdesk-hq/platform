@@ -1,6 +1,7 @@
 package com.optionsdesk.trading.book.config;
 
 import com.optionsdesk.shared.calendar.MarketCalendar;
+import com.optionsdesk.trading.alerts.port.Alerts;
 import com.optionsdesk.trading.book.service.MinuteEngine;
 import com.optionsdesk.trading.book.spi.BookFactory;
 import com.optionsdesk.trading.book.spi.DayFeed;
@@ -31,7 +32,7 @@ class BooksConfiguration {
 
   @Bean
   MinuteEngine minuteEngine(
-      MarketProperties market, DayFeed.Factory feeds, List<BookFactory> factories) {
+      MarketProperties market, DayFeed.Factory feeds, List<BookFactory> factories, Alerts alerts) {
     // one line at startup, so a deploy shows at once whether the engine and the expected books are
     // wired in
     LoggerFactory.getLogger(MinuteEngine.class)
@@ -43,7 +44,8 @@ class BooksConfiguration {
         new MarketCalendar(new HashSet<>(market.holidays())),
         feeds,
         factories,
-        BooksConfiguration::executorFor);
+        BooksConfiguration::executorFor,
+        alerts);
   }
 
   @Bean
