@@ -5,6 +5,7 @@ import com.optionsdesk.trading.alerts.port.Alerts;
 import com.optionsdesk.trading.book.spi.BookFactory;
 import com.optionsdesk.trading.book.spi.DayFeed;
 import com.optionsdesk.trading.book.spi.MinuteBook;
+import com.optionsdesk.trading.execution.port.QuoteSource;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZonedDateTime;
@@ -50,7 +51,7 @@ public final class MinuteEngine {
   private final Set<String> alerted = new HashSet<>();
 
   private LocalDate day;
-  private DayFeed feed;
+  private volatile DayFeed feed;
   private final Map<String, Running> books = new LinkedHashMap<>();
   private boolean finished;
   private Optional<String> lastProblem = Optional.empty();
@@ -207,6 +208,17 @@ public final class MinuteEngine {
     } catch (RuntimeException e) {
       log.warn("summary of {} failed: {}", r.book().id(), e.toString());
     }
+  }
+
+  /**
+   * Quotes from today's latest capture (stamped with the capture time): paper books fill from the
+   * snapshot they decided on, with no extra broker request. Empty before the first capture.
+   */
+  public QuoteSource quotes() {
+    return contract -> {
+      DayFeed f = feed;
+      return f == null ? Optional.empty() : f.latest(contract);
+    };
   }
 
   /** The session the engine is running, if any. */

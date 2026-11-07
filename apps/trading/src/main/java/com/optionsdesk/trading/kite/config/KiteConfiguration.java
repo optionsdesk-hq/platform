@@ -39,7 +39,7 @@ class KiteConfiguration {
    * minute.
    */
   @Bean
-  com.optionsdesk.trading.book.spi.DayFeed.Factory kiteDayFeeds(KiteClient kite) {
-    return day -> KiteDayFeed.open(kite, day, "NSE:NIFTY 50", "NFO", "NIFTY", 1_000);
+  com.optionsdesk.trading.book.spi.DayFeed.Factory kiteDayFeeds(KiteClient kite, Clock clock) {
+    return day -> KiteDayFeed.open(kite, day, "NSE:NIFTY 50", "NFO", "NIFTY", 1_000, clock);
   }
 }
