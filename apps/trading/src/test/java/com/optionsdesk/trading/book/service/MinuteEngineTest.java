@@ -93,6 +93,11 @@ class MinuteEngineTest {
     }
 
     @Override
+    public String summary() {
+      return "made " + calls.size() + " calls";
+    }
+
+    @Override
     public void exitNow(MinuteMarket market, String reason) {
       calls.add("exit:" + reason);
     }
@@ -101,6 +106,19 @@ class MinuteEngineTest {
   final List<FakeFeed> feeds = new ArrayList<>();
   final List<Recorder> books = new ArrayList<>();
   final List<LocalDate> opened = new ArrayList<>();
+  final List<String> sent = new ArrayList<>();
+  final com.optionsdesk.trading.alerts.port.Alerts alerts =
+      new com.optionsdesk.trading.alerts.port.Alerts() {
+        @Override
+        public void info(String text) {
+          sent.add("info: " + text);
+        }
+
+        @Override
+        public void urgent(String text) {
+          sent.add("URGENT: " + text);
+        }
+      };
   boolean feedDown;
 
   MinuteEngine engine(BookFactory... extra) {
@@ -121,7 +139,7 @@ class MinuteEngineTest {
           books.add(r);
           return Optional.of(r);
         });
-    return new MinuteEngine(CALENDAR, factory, factories, id -> Runnable::run);
+    return new MinuteEngine(CALENDAR, factory, factories, id -> Runnable::run, alerts);
   }
 
   @Test
@@ -239,5 +257,21 @@ class MinuteEngineTest {
     e.tick(at(MON, 9, 15, 2));
     assertThat(e.exitAll("kill")).containsExactly("plain", "a-" + MON);
     assertThat(e.lastProblem()).hasValueSatisfying(p -> assertThat(p).contains("can't exit"));
+  }
+
+  @Test
+  void alertsTheOpenEachProblemOnceADayAndTheSummaries() {
+    var e = engine();
+    e.tick(at(MON, 9, 15, 2));
+    for (int m = 16; m < 20; m++) {
+      feeds.get(0).failNext = true;
+      e.tick(at(MON, 9, m, 2)); // four failed captures
+    }
+    e.tick(at(MON, 15, 31, 2));
+    assertThat(sent)
+        .containsExactly(
+            "info: session " + MON + " opened: books [a-" + MON + "]",
+            "URGENT: 09:16 capture failed, minute skipped: no quotes",
+            "info: a-" + MON + ": made 2 calls");
   }
 }

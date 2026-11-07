@@ -1,6 +1,7 @@
 package com.optionsdesk.trading.book.service;
 
 import com.optionsdesk.shared.calendar.MarketCalendar;
+import com.optionsdesk.trading.alerts.port.Alerts;
 import com.optionsdesk.trading.book.spi.BookFactory;
 import com.optionsdesk.trading.book.spi.DayFeed;
 import com.optionsdesk.trading.book.spi.MinuteBook;
@@ -9,10 +10,12 @@ import java.time.LocalTime;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -43,6 +46,8 @@ public final class MinuteEngine {
   private final DayFeed.Factory feeds;
   private final List<BookFactory> factories;
   private final Function<String, Executor> executors;
+  private final Alerts alerts;
+  private final Set<String> alerted = new HashSet<>();
 
   private LocalDate day;
   private DayFeed feed;
@@ -56,11 +61,13 @@ public final class MinuteEngine {
       MarketCalendar calendar,
       DayFeed.Factory feeds,
       List<BookFactory> factories,
-      Function<String, Executor> executors) {
+      Function<String, Executor> executors,
+      Alerts alerts) {
     this.calendar = calendar;
     this.feeds = feeds;
     this.factories = List.copyOf(factories);
     this.executors = executors;
+    this.alerts = alerts;
   }
 
   /** One minute of the engine at {@code now} (any zone; IST is used). */
@@ -85,6 +92,7 @@ public final class MinuteEngine {
     if (m.isAfter(MarketCalendar.CLOSE)) {
       for (Running r : books.values()) {
         dispatch(r, () -> r.book().finish(feed));
+        r.executor().execute(() -> summarise(r));
       }
       finished = true;
       return;
@@ -92,7 +100,7 @@ public final class MinuteEngine {
     try {
       feed.capture(m);
     } catch (RuntimeException e) {
-      problem("%s capture failed, minute skipped: %s".formatted(m, e.getMessage()));
+      problem("capture", "%s capture failed, minute skipped: %s".formatted(m, e.getMessage()));
       return;
     }
     for (Running r : books.values()) {
@@ -116,7 +124,7 @@ public final class MinuteEngine {
               try {
                 r.book().exitNow(f, reason);
               } catch (RuntimeException e) {
-                problem("book %s exit failed: %s".formatted(bookId, e));
+                problem("exit:" + bookId, "book %s exit failed: %s".formatted(bookId, e));
               }
               r.failure().compareAndSet(null, "exited: " + reason);
             });
@@ -140,7 +148,7 @@ public final class MinuteEngine {
     try {
       f = feeds.open(d);
     } catch (RuntimeException e) {
-      problem("%s feed not open yet: %s".formatted(d, e.getMessage()));
+      problem("feed", "%s feed not open yet: %s".formatted(d, e.getMessage()));
       return false;
     }
     day = d;
@@ -156,6 +164,7 @@ public final class MinuteEngine {
                       b.id(), new Running(b, executors.apply(b.id()), new AtomicReference<>())));
     }
     log.info("session {} opened with books {}", d, books.keySet());
+    alerts.info("session %s opened: books %s".formatted(d, books.keySet()));
     return true;
   }
 
@@ -173,14 +182,31 @@ public final class MinuteEngine {
                 work.run();
               } catch (RuntimeException e) {
                 r.failure().set(e.toString());
-                problem("book %s stopped for the day: %s".formatted(r.book().id(), e));
+                problem(
+                    "book:" + r.book().id(),
+                    "book %s stopped for the day: %s".formatted(r.book().id(), e));
               }
             });
   }
 
-  private void problem(String what) {
+  /** Logged every time; alerted (urgent) once per kind per day, so an outage isn't 375 messages. */
+  private void problem(String kind, String what) {
     lastProblem = Optional.of(what);
     log.warn(what);
+    if (alerted.add(kind + "@" + (day == null ? "-" : day))) {
+      alerts.urgent(what);
+    }
+  }
+
+  private void summarise(Running r) {
+    try {
+      String s = r.book().summary();
+      if (!s.isBlank()) {
+        alerts.info(r.book().id() + ": " + s);
+      }
+    } catch (RuntimeException e) {
+      log.warn("summary of {} failed: {}", r.book().id(), e.toString());
+    }
   }
 
   /** The session the engine is running, if any. */

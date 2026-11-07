@@ -25,4 +25,9 @@ public interface MinuteBook {
   default void exitNow(MinuteMarket market, String reason) {
     throw new UnsupportedOperationException(id() + " can't exit on demand");
   }
+
+  /** One line for the end-of-day alert (empty = nothing to report). */
+  default String summary() {
+    return "";
+  }
 }
