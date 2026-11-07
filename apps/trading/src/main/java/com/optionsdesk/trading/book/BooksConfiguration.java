@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +29,13 @@ class BooksConfiguration {
   @Bean
   MinuteEngine minuteEngine(
       MarketProperties market, DayFeed.Factory feeds, List<BookFactory> factories) {
+    // one line at startup, so a deploy shows at once whether the engine and the expected books are
+    // wired in
+    LoggerFactory.getLogger(MinuteEngine.class)
+        .info(
+            "minute engine ON: {} book factor{} registered",
+            factories.size(),
+            factories.size() == 1 ? "y" : "ies");
     return new MinuteEngine(
         new MarketCalendar(new HashSet<>(market.holidays())),
         feeds,
