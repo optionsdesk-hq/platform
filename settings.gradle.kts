@@ -12,4 +12,5 @@ include(
     "libs:shared-kernel", // pure domain, pricing, calendar: no Spring, no I/O
     "apps:trading", //       decides and trades (Spring Boot, Spring Modulith)
     "apps:marketdata", //    records and imports (Spring Boot)
+    "apps:cli", //           the "od" terminal console over the API
 )
