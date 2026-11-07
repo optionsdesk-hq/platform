@@ -91,6 +91,11 @@ class MinuteEngineTest {
     public void finish(MinuteMarket market) {
       calls.add("finish");
     }
+
+    @Override
+    public void exitNow(MinuteMarket market, String reason) {
+      calls.add("exit:" + reason);
+    }
   }
 
   final List<FakeFeed> feeds = new ArrayList<>();
@@ -199,5 +204,40 @@ class MinuteEngineTest {
     assertThat(books).hasSize(2);
     assertThat(books.get(1).calls).containsExactly("09:15");
     assertThat(e.finished()).isFalse();
+  }
+
+  @Test
+  void exitClosesOnTheBooksThreadAndStopsItForTheDay() {
+    var e = engine();
+    e.tick(at(MON, 9, 15, 2));
+    assertThat(e.exit("a-" + MON, "owner")).isTrue();
+    e.tick(at(MON, 9, 16, 2));
+    e.tick(at(MON, 15, 31, 2));
+    assertThat(books.get(0).calls).containsExactly("09:15", "exit:owner");
+    assertThat(e.books()).containsEntry("a-" + MON, "stopped: exited: owner");
+    assertThat(e.exit("a-" + MON, "again")).isFalse(); // already stopped
+    assertThat(e.exit("nope", "x")).isFalse();
+  }
+
+  @Test
+  void exitAllAsksEveryRunningBookAndABookThatCantExitIsReported() {
+    var plain =
+        new MinuteBook() {
+          @Override
+          public String id() {
+            return "plain";
+          }
+
+          @Override
+          public void onMinute(LocalTime minute, MinuteMarket market) {}
+
+          @Override
+          public void finish(MinuteMarket market) {}
+        };
+    var e = engine((d, c) -> Optional.of(plain));
+    assertThat(e.exitAll("kill")).isEmpty(); // nothing open before the first tick
+    e.tick(at(MON, 9, 15, 2));
+    assertThat(e.exitAll("kill")).containsExactly("plain", "a-" + MON);
+    assertThat(e.lastProblem()).hasValueSatisfying(p -> assertThat(p).contains("can't exit"));
   }
 }

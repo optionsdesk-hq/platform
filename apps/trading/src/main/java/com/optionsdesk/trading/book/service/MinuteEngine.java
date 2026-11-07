@@ -100,6 +100,41 @@ public final class MinuteEngine {
     }
   }
 
+  /**
+   * Exit one of today's books now: it closes what it holds (on its own thread) and is stopped for
+   * the rest of the day. False when the book isn't running today.
+   */
+  public synchronized boolean exit(String bookId, String reason) {
+    Running r = books.get(bookId);
+    if (r == null || r.failure().get() != null || feed == null || finished) {
+      return false;
+    }
+    DayFeed f = feed;
+    r.executor()
+        .execute(
+            () -> {
+              try {
+                r.book().exitNow(f, reason);
+              } catch (RuntimeException e) {
+                problem("book %s exit failed: %s".formatted(bookId, e));
+              }
+              r.failure().compareAndSet(null, "exited: " + reason);
+            });
+    log.warn("book {} exiting: {}", bookId, reason);
+    return true;
+  }
+
+  /** Exit every book running today; returns the ones asked to exit. */
+  public synchronized List<String> exitAll(String reason) {
+    List<String> asked = new ArrayList<>();
+    for (String id : books.keySet()) {
+      if (exit(id, reason)) {
+        asked.add(id);
+      }
+    }
+    return asked;
+  }
+
   private boolean openDay(LocalDate d) {
     DayFeed f;
     try {

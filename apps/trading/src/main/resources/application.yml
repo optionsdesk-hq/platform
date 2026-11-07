@@ -29,6 +29,8 @@ management:
       app: trading
 
 optionsdesk:
+  api:
+    token: ${OPTIONSDESK_API_TOKEN:}        # bearer token for API writes; empty = writes refused
   books:
     enabled: ${BOOKS_ENABLED:false}         # the minute engine: off unless an environment switches it on
   kite:

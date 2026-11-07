@@ -10,6 +10,7 @@ import com.optionsdesk.trading.PostgresTestConfiguration;
 import com.optionsdesk.trading.execution.model.Execution;
 import com.optionsdesk.trading.execution.model.OrderRequest;
 import com.optionsdesk.trading.journal.model.Book;
+import com.optionsdesk.trading.journal.model.Position;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -125,5 +126,35 @@ class PositionJournalTest {
     assertThatThrownBy(
             () -> journal.opened("spread-a", List.of(), Optional.empty(), Optional.empty()))
         .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void recentOpenCountAndRealisedToday() {
+    books.save(new Book("rq-book", "credit-spread", "PAPER", 1, "ACTIVE"));
+    long open =
+        journal.opened(
+            "rq-book",
+            List.of(fill(WING, OrderRequest.Side.BUY, 20, 30, T0)),
+            Optional.empty(),
+            Optional.empty());
+    long done =
+        journal.opened(
+            "rq-book",
+            List.of(fill(SHORT, OrderRequest.Side.SELL, 60, 40, T0)),
+            Optional.empty(),
+            Optional.empty());
+    journal.closed(
+        done, List.of(fill(SHORT, OrderRequest.Side.BUY, 50, 35, T0.plusSeconds(60))), "stop");
+    assertThat(journal.countOpen("rq-book")).isEqualTo(1);
+    assertThat(journal.recent("rq-book", 10)).extracting(Position::id).containsExactly(done, open);
+    assertThat(journal.recent("rq-book", 1)).hasSize(1);
+    // (60 - 50) x 130 - 75 charges
+    assertThat(journal.realisedSince("rq-book", T0.minusSeconds(3600)))
+        .isCloseTo(1_225, within(1e-9));
+    assertThat(journal.realisedSince("rq-book", T0.plusSeconds(3600))).isZero();
+    assertThat(books.find("rq-book")).isPresent();
+    assertThat(books.setState("rq-book", "PAUSED")).isTrue();
+    assertThat(books.find("rq-book").orElseThrow().state()).isEqualTo("PAUSED");
+    assertThat(books.setState("nope", "PAUSED")).isFalse();
   }
 }
